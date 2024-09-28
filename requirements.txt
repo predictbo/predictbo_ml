@@ -9,7 +9,6 @@ pickleshare==0.7.5
 pure_eval==0.2.3
 Pygments==2.18.0
 pytz==2023.3.post1
-pywin32==306
 pyzmq==26.2.0
 repoze.lru==0.7
 rpds-py==0.20.0
