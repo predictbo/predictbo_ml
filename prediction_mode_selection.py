@@ -1,4 +1,6 @@
+# prediction_mode_selection.py
 from missing_values_handler import handle_missing_values
+from file_downloader import download_predictions
 import streamlit as st
 import numpy as np
 import pandas as pd
@@ -31,6 +33,10 @@ def handle_prediction_mode(scaler, model, uploaded_files):
 
             # Display the prediction result
             st.write(f'The predicted Bo value is: {prediction[0][0]:.4f}')
+
+            # Option to download the prediction
+            download_predictions(pd.DataFrame(input_data, columns=['Rs', 'T', 'yo', 'Pb', 'API', 'yg']),
+                                 prediction, file_type='csv', append=True)
 
     elif prediction_mode == 'Batch Prediction':
         st.header('Batch Prediction')
@@ -71,8 +77,17 @@ def handle_prediction_mode(scaler, model, uploaded_files):
 
             if st.button("Predict"):
                 predictions = model.predict(scaled_data)
+                
+                st.write("Batch Predictions :")
+                    
+                # Convert predictions to a DataFrame for better display
+                predictions_df = pd.DataFrame(predictions, columns=['Predicted Bo'])
+                    
+                # Display predictions in a better format (table with scroll)
+                st.dataframe(predictions_df)
+                
+                # Option to download the predictions
+                download_predictions(df_cleaned, predictions, file_type='csv', append=True)
 
-                st.write("Batch Predictions:")
-                st.write(predictions)
         else:
             st.info("Please upload a CSV file to proceed with batch predictions.")
