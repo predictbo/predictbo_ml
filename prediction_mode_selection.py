@@ -46,6 +46,10 @@ def handle_prediction_mode(scaler, model, uploaded_files):
             selected_file_name = st.selectbox("Select the CSV file to use", filenames)
 
             selected_file = next(file for file in uploaded_files if file.name == selected_file_name)
+
+            # Reset the buffer to avoid EmptyDataError on re-use
+            selected_file.seek(0)
+            
             df = pd.read_csv(selected_file)
 
             st.write("Selected File Data Preview:")
