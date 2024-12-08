@@ -1,8 +1,9 @@
 from missing_values_handler import handle_missing_values
+from file_downloader import download_predictions
 import streamlit as st
 import numpy as np
 import pandas as pd
-from io import BytesIO
+import joblib
 from tensorflow.keras.models import load_model
 
 def handle_prediction_mode(pipeline, model, uploaded_files):
@@ -13,10 +14,10 @@ def handle_prediction_mode(pipeline, model, uploaded_files):
         st.header('Single Prediction')
 
         # Manually input values
-        Rs = st.number_input('Solution Gas Oil Ratio (scf/stb)', min_value=0.0, format='%.3f')
-        T = st.number_input('Temperature (F)', min_value=0.0, format='%.3f')
+        Rs = st.number_input('Rs', min_value=0.0, format='%.3f')
+        T = st.number_input('T', min_value=0.0, format='%.3f')
         API = st.number_input('API', min_value=0.0, format='%.3f')
-        Pb = st.number_input('Bubble Point Pressure (psi)', min_value=0.0, format='%.3f')
+        Pb = st.number_input('Pb', min_value=0.0, format='%.3f')
 
         # Prepare the input for prediction
         input_data = np.array([[Rs, T, API, Pb]])
@@ -32,19 +33,9 @@ def handle_prediction_mode(pipeline, model, uploaded_files):
             # Display the prediction result
             st.write(f'The predicted Bo value is: {prediction[0][0]:.3f}')
 
-            # Prepare the DataFrame for download
-            result_df = pd.DataFrame(
-                input_data, columns=['Rs', 'T', 'API', 'Pb']
-            )
-            result_df['Predicted Bo'] = prediction.round(3)
-
-            # Download as Excel file
-            st.download_button(
-                label="Download Prediction as Excel",
-                data=convert_to_excel(result_df),
-                file_name="single_prediction.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
+            # Option to download the prediction
+            download_predictions(pd.DataFrame(input_data, columns=['Rs', 'T', 'API', 'Pb']),
+                                 prediction, file_type='csv', append=True)
 
     elif prediction_mode == 'Dataset Prediction':
         st.header('Dataset Prediction')
@@ -58,10 +49,10 @@ def handle_prediction_mode(pipeline, model, uploaded_files):
             st.write("Selected File Data Preview:")
             st.write(selected_file_data.head())
 
-            col_Rs = st.selectbox('Select column for Solution Gas Oil Ratio (scf/stb)', selected_file_data.columns)
-            col_T = st.selectbox('Select column for Temperature (F)', selected_file_data.columns)
+            col_Rs = st.selectbox('Select column for Rs', selected_file_data.columns)
+            col_T = st.selectbox('Select column for T', selected_file_data.columns)
             col_API = st.selectbox('Select column for API', selected_file_data.columns)
-            col_Pb = st.selectbox('Select column for Bubble Point Pressure (psi)', selected_file_data.columns)
+            col_Pb = st.selectbox('Select column for Pb', selected_file_data.columns)
 
             # Check for missing values in the selected columns
             if selected_file_data[[col_Rs, col_T, col_API, col_Pb]].isnull().any().any():
@@ -80,7 +71,7 @@ def handle_prediction_mode(pipeline, model, uploaded_files):
             if st.button("Predict"):
                 predictions = model.predict(preprocessed_data)
                 
-                st.write("Bo Predictions :")
+                st.write("Batch Predictions :")
                     
                 # Convert predictions to a DataFrame for better display
                 predictions_df = pd.DataFrame(predictions, columns=['Predicted Bo']).round(3)
@@ -91,23 +82,8 @@ def handle_prediction_mode(pipeline, model, uploaded_files):
                 # Display predictions in a better format (table with scroll)
                 st.dataframe(results_df)
                 
-                # Download results as Excel file
-                st.download_button(
-                    label="Download Predictions as Excel",
-                    data=convert_to_excel(results_df),
-                    file_name="Bo predictions.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                )
+                # Option to download the predictions
+                download_predictions(results_df, predictions, file_type='csv', append=True)
 
         else:
             st.info("Please upload a file to proceed with Dataset predictions.")
-
-def convert_to_excel(dataframe):
-    """
-    Converts a DataFrame to an Excel file in memory.
-    """
-    output = BytesIO()
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        dataframe.to_excel(writer, index=False, sheet_name='Predictions')
-    processed_data = output.getvalue()
-    return processed_data
