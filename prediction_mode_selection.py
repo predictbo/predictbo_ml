@@ -1,13 +1,14 @@
-# prediction_mode_selection.py
 from missing_values_handler import handle_missing_values
 from file_downloader import download_predictions
 import streamlit as st
 import numpy as np
 import pandas as pd
+import joblib
+from tensorflow.keras.models import load_model
 
-def handle_prediction_mode(scaler, model, uploaded_files):
-    prediction_mode = st.radio('How would you like to proceed?',
-                               ('Single Prediction', 'Batch Prediction'))
+def handle_prediction_mode(pipeline, model, uploaded_files):
+    prediction_mode = prediction_mode = st.radio('How would you like to proceed?', 
+                           ('Single Prediction', 'Dataset Prediction'))
 
     if prediction_mode == 'Single Prediction':
         st.header('Single Prediction')
@@ -15,31 +16,29 @@ def handle_prediction_mode(scaler, model, uploaded_files):
         # Manually input values
         Rs = st.number_input('Rs', min_value=0.0, format='%.3f')
         T = st.number_input('T', min_value=0.0, format='%.3f')
-        yo = st.number_input('yo', min_value=0.0, format='%.3f')
-        Pb = st.number_input('Pb', min_value=0.0, format='%.3f')
         API = st.number_input('API', min_value=0.0, format='%.3f')
-        yg = st.number_input('yg', min_value=0.0, format='%.3f')
+        Pb = st.number_input('Pb', min_value=0.0, format='%.3f')
 
         # Prepare the input for prediction
-        input_data = np.array([[Rs, T, yo, Pb, API, yg]])
+        input_data = np.array([[Rs, T, API, Pb]])
 
-        # Preprocess the input data (scale the features)
-        scaled_data = scaler.transform(input_data)
+        # Preprocess the input data
+        preprocessed_data = pipeline.transform(input_data)
 
         # Predict button for single prediction
         if st.button("Predict"):
             # Make prediction using the loaded model
-            prediction = model.predict(scaled_data)
+            prediction = model.predict(preprocessed_data)
 
             # Display the prediction result
-            st.write(f'The predicted Bo value is: {prediction[0][0]:.4f}')
+            st.write(f'The predicted Bo value is: {prediction[0][0]:.3f}')
 
             # Option to download the prediction
-            download_predictions(pd.DataFrame(input_data, columns=['Rs', 'T', 'yo', 'Pb', 'API', 'yg']),
+            download_predictions(pd.DataFrame(input_data, columns=['Rs', 'T', 'API', 'Pb']),
                                  prediction, file_type='csv', append=True)
 
-    elif prediction_mode == 'Batch Prediction':
-        st.header('Batch Prediction')
+    elif prediction_mode == 'Dataset Prediction':
+        st.header('Dataset Prediction')
 
         if uploaded_files:
             filenames = [uploaded_file.name for uploaded_file in uploaded_files]
@@ -57,41 +56,39 @@ def handle_prediction_mode(scaler, model, uploaded_files):
 
             col_Rs = st.selectbox('Select column for Rs', df.columns)
             col_T = st.selectbox('Select column for T', df.columns)
-            col_yo = st.selectbox('Select column for yo', df.columns)
-            col_Pb = st.selectbox('Select column for Pb', df.columns)
             col_API = st.selectbox('Select column for API', df.columns)
-            col_yg = st.selectbox('Select column for yg', df.columns)
+            col_Pb = st.selectbox('Select column for Pb', df.columns)
 
-            # Check for missing values in the selected columns and only show missing value handling if missing values exist
-            if df[[col_Rs, col_T, col_yo, col_Pb, col_API, col_yg]].isnull().any().any():
+            # Check for missing values in the selected columns
+            if df[[col_Rs, col_T, col_API, col_Pb]].isnull().any().any():
                 # Show missing value handling option if there are missing values
                 df_cleaned = handle_missing_values(df)
             else:
                 # If no missing values, use the original dataframe
                 df_cleaned = df
 
-            # Drop the target column 'Bo' if it's present
-            df_cleaned = df_cleaned.drop(columns=['Bo'], errors='ignore')
-
             # Prepare the input for prediction
-            input_data = df_cleaned[[col_Rs, col_T, col_yo, col_Pb, col_API, col_yg]].values
+            input_data = df_cleaned[[col_Rs, col_T, col_API, col_Pb]].values
 
-            # Preprocess the cleaned data (scale the features)
-            scaled_data = scaler.transform(input_data)
+            # Preprocess the cleaned data
+            preprocessed_data = pipeline.transform(input_data)
 
             if st.button("Predict"):
-                predictions = model.predict(scaled_data)
+                predictions = model.predict(preprocessed_data)
                 
                 st.write("Batch Predictions :")
                     
                 # Convert predictions to a DataFrame for better display
-                predictions_df = pd.DataFrame(predictions, columns=['Predicted Bo'])
-                    
+                predictions_df = pd.DataFrame(predictions, columns=['Predicted Bo']).round(3)
+                
+                # Combine the cleaned data with predictions
+                results_df = pd.concat([df_cleaned.reset_index(drop=True), predictions_df], axis=1)  
+                
                 # Display predictions in a better format (table with scroll)
-                st.dataframe(predictions_df)
+                st.dataframe(results_df)
                 
                 # Option to download the predictions
-                download_predictions(df_cleaned, predictions, file_type='csv', append=True)
+                download_predictions(results_df, predictions, file_type='csv', append=True)
 
         else:
             st.info("Please upload a CSV file to proceed with batch predictions.")
