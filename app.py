@@ -36,6 +36,3 @@ model = load_model('trained_model.h5')
 
 # Call the modularized prediction mode handler
 handle_prediction_mode(pipeline, model, uploaded_files)
-
-if __name__ == '__main__':     
-    st.set_option('server.enableCORS', True)
